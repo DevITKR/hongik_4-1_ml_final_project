@@ -1,0 +1,8 @@
+torch
+torchaudio
+transformers
+numpy
+tqdm
+soundfile
+scikit-learn
+matplotlib

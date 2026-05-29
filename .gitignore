@@ -1,0 +1,32 @@
+# macOS
+.DS_Store
+
+# Python caches
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Dataset and generated data
+data/
+
+# Model checkpoints
+saved_models/
+*.pth
+*.pt
+*.ckpt
+
+# Evaluation outputs
+results/
+
+# Local logs and temporary files
+*.log
+tmp/
+temp/
