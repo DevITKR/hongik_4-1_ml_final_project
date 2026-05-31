@@ -6,3 +6,6 @@ tqdm
 soundfile
 scikit-learn
 matplotlib
+fastapi
+uvicorn
+python-multipart

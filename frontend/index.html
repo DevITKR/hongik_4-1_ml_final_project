@@ -1,0 +1,709 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>감정 연기 피드백</title>
+    <style>
+      :root {
+        color-scheme: light;
+        --bg: #f4f6f8;
+        --panel: #ffffff;
+        --panel-soft: #eef3f8;
+        --text: #1d2733;
+        --muted: #627084;
+        --line: #d8e0ea;
+        --primary: #246bfe;
+        --primary-dark: #174dc2;
+        --success: #16875f;
+        --warning: #a65f00;
+        --danger: #c63d3d;
+        --bar-bg: #e6edf5;
+        --shadow: 0 14px 45px rgba(26, 39, 58, 0.09);
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      [hidden] {
+        display: none !important;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        background:
+          linear-gradient(180deg, rgba(255, 255, 255, 0.72), rgba(244, 246, 248, 1)),
+          var(--bg);
+        color: var(--text);
+        font-family:
+          Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
+          sans-serif;
+      }
+
+      button,
+      input {
+        font: inherit;
+      }
+
+      .page {
+        width: min(1120px, calc(100% - 32px));
+        margin: 0 auto;
+        padding: 32px 0 48px;
+      }
+
+      .topbar {
+        display: flex;
+        align-items: flex-end;
+        justify-content: space-between;
+        gap: 24px;
+        margin-bottom: 28px;
+      }
+
+      h1 {
+        margin: 0 0 8px;
+        font-size: clamp(30px, 4vw, 48px);
+        line-height: 1.05;
+        letter-spacing: 0;
+      }
+
+      .lead {
+        max-width: 680px;
+        margin: 0;
+        color: var(--muted);
+        line-height: 1.65;
+      }
+
+      .status-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        min-height: 36px;
+        padding: 8px 12px;
+        border: 1px solid var(--line);
+        border-radius: 999px;
+        background: var(--panel);
+        color: var(--muted);
+        white-space: nowrap;
+      }
+
+      .status-dot {
+        width: 9px;
+        height: 9px;
+        border-radius: 50%;
+        background: var(--warning);
+      }
+
+      .status-pill.ready .status-dot {
+        background: var(--success);
+      }
+
+      .status-pill.error .status-dot {
+        background: var(--danger);
+      }
+
+      .layout {
+        display: grid;
+        grid-template-columns: minmax(0, 0.95fr) minmax(360px, 1.05fr);
+        gap: 20px;
+        align-items: start;
+      }
+
+      .panel {
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        box-shadow: var(--shadow);
+      }
+
+      .panel-header {
+        padding: 20px 22px 0;
+      }
+
+      .panel-header h2 {
+        margin: 0;
+        font-size: 20px;
+        letter-spacing: 0;
+      }
+
+      .panel-body {
+        padding: 20px 22px 22px;
+      }
+
+      .field {
+        display: grid;
+        gap: 8px;
+        margin-bottom: 18px;
+      }
+
+      label {
+        color: var(--muted);
+        font-size: 13px;
+        font-weight: 700;
+      }
+
+      input[type="url"],
+      input[type="file"] {
+        width: 100%;
+        min-height: 44px;
+        padding: 10px 12px;
+        border: 1px solid var(--line);
+        border-radius: 6px;
+        background: #ffffff;
+        color: var(--text);
+      }
+
+      input[type="file"] {
+        padding: 9px 10px;
+      }
+
+      .controls {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 10px;
+        margin-bottom: 16px;
+      }
+
+      .button {
+        min-height: 44px;
+        border: 1px solid transparent;
+        border-radius: 6px;
+        padding: 10px 14px;
+        background: var(--primary);
+        color: #ffffff;
+        cursor: pointer;
+        font-weight: 800;
+      }
+
+      .button:hover:not(:disabled) {
+        background: var(--primary-dark);
+      }
+
+      .button.secondary {
+        border-color: var(--line);
+        background: #ffffff;
+        color: var(--text);
+      }
+
+      .button.secondary:hover:not(:disabled) {
+        background: var(--panel-soft);
+      }
+
+      .button.danger {
+        background: var(--danger);
+      }
+
+      .button.danger:hover:not(:disabled) {
+        background: #a62e2e;
+      }
+
+      .button:disabled {
+        cursor: not-allowed;
+        opacity: 0.55;
+      }
+
+      .predict-button {
+        width: 100%;
+      }
+
+      .audio-preview {
+        width: 100%;
+        margin: 8px 0 16px;
+      }
+
+      .hint {
+        margin: 10px 0 0;
+        color: var(--muted);
+        font-size: 13px;
+        line-height: 1.6;
+      }
+
+      .message {
+        display: none;
+        margin-top: 14px;
+        padding: 12px;
+        border-radius: 6px;
+        border: 1px solid var(--line);
+        color: var(--muted);
+        line-height: 1.55;
+      }
+
+      .message.show {
+        display: block;
+      }
+
+      .message.error {
+        border-color: rgba(198, 61, 61, 0.35);
+        background: rgba(198, 61, 61, 0.08);
+        color: #8f2a2a;
+      }
+
+      .message.info {
+        border-color: rgba(36, 107, 254, 0.25);
+        background: rgba(36, 107, 254, 0.07);
+        color: #1d4fa8;
+      }
+
+      .result-hero {
+        display: grid;
+        grid-template-columns: 1fr auto;
+        gap: 16px;
+        align-items: start;
+        margin-bottom: 20px;
+        padding: 18px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: var(--panel-soft);
+      }
+
+      .emotion-label {
+        margin: 0 0 8px;
+        font-size: clamp(28px, 6vw, 44px);
+        line-height: 1;
+      }
+
+      .confidence {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-width: 96px;
+        min-height: 96px;
+        border: 8px solid rgba(36, 107, 254, 0.18);
+        border-radius: 50%;
+        color: var(--primary-dark);
+        font-size: 22px;
+        font-weight: 900;
+      }
+
+      .empty-state {
+        min-height: 300px;
+        display: grid;
+        place-items: center;
+        border: 1px dashed var(--line);
+        border-radius: 8px;
+        color: var(--muted);
+        text-align: center;
+        line-height: 1.6;
+        padding: 24px;
+      }
+
+      .feedback {
+        margin: 0 0 20px;
+        color: var(--text);
+        line-height: 1.7;
+      }
+
+      .section-title {
+        margin: 24px 0 12px;
+        color: var(--muted);
+        font-size: 13px;
+        font-weight: 900;
+        text-transform: uppercase;
+      }
+
+      .top-k {
+        display: grid;
+        gap: 8px;
+      }
+
+      .top-item,
+      .probability-row {
+        display: grid;
+        grid-template-columns: 92px 1fr 58px;
+        gap: 10px;
+        align-items: center;
+      }
+
+      .bar {
+        height: 10px;
+        overflow: hidden;
+        border-radius: 999px;
+        background: var(--bar-bg);
+      }
+
+      .bar-fill {
+        height: 100%;
+        width: 0;
+        border-radius: inherit;
+        background: var(--primary);
+        transition: width 180ms ease;
+      }
+
+      .percent {
+        color: var(--muted);
+        text-align: right;
+        font-variant-numeric: tabular-nums;
+      }
+
+      .emotion-name {
+        font-weight: 800;
+      }
+
+      .raw-json {
+        max-height: 190px;
+        overflow: auto;
+        margin: 18px 0 0;
+        padding: 12px;
+        border-radius: 6px;
+        background: #111827;
+        color: #d7e1f5;
+        font-size: 12px;
+        line-height: 1.5;
+      }
+
+      @media (max-width: 860px) {
+        .topbar {
+          display: grid;
+        }
+
+        .layout {
+          grid-template-columns: 1fr;
+        }
+
+        .result-hero {
+          grid-template-columns: 1fr;
+        }
+
+        .confidence {
+          min-width: 82px;
+          min-height: 82px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="page">
+      <header class="topbar">
+        <div>
+          <h1>감정 연기 피드백</h1>
+          <p class="lead">
+            녹음한 대사나 업로드한 음성을 분석해 모델이 인식한 감정과 표현 강도를
+            확인합니다.
+          </p>
+        </div>
+        <div id="apiStatus" class="status-pill">
+          <span class="status-dot"></span>
+          <span>API 확인 중</span>
+        </div>
+      </header>
+
+      <section class="layout">
+        <div class="panel">
+          <div class="panel-header">
+            <h2>음성 입력</h2>
+          </div>
+          <div class="panel-body">
+            <div class="field">
+              <label for="endpointInput">API endpoint</label>
+              <input id="endpointInput" type="url" value="http://localhost:8000/predict" />
+            </div>
+
+            <div class="controls">
+              <button id="recordButton" class="button">녹음 시작</button>
+              <button id="stopButton" class="button danger" disabled>정지</button>
+            </div>
+
+            <audio id="audioPreview" class="audio-preview" controls hidden></audio>
+
+            <div class="field">
+              <label for="fileInput">또는 wav 파일 업로드</label>
+              <input id="fileInput" type="file" accept="audio/*,.wav" />
+            </div>
+
+            <button id="predictButton" class="button predict-button" disabled>
+              감정 예측하기
+            </button>
+
+            <p class="hint">
+              브라우저 녹음은 환경에 따라 webm으로 저장될 수 있습니다. 디코딩이
+              실패하면 RAVDESS 같은 wav 파일 업로드로 테스트하세요.
+            </p>
+
+            <div id="message" class="message"></div>
+          </div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-header">
+            <h2>예측 결과와 피드백</h2>
+          </div>
+          <div class="panel-body">
+            <div id="emptyState" class="empty-state">
+              녹음하거나 음성 파일을 선택한 뒤 감정 예측을 실행하세요.
+            </div>
+
+            <div id="resultView" hidden>
+              <div class="result-hero">
+                <div>
+                  <p class="hint">모델이 가장 강하게 인식한 감정</p>
+                  <h3 id="emotionLabel" class="emotion-label">-</h3>
+                  <p id="feedback" class="feedback"></p>
+                </div>
+                <div id="confidence" class="confidence">0%</div>
+              </div>
+
+              <div class="section-title">Top 3</div>
+              <div id="topK" class="top-k"></div>
+
+              <div class="section-title">전체 감정 확률</div>
+              <div id="probabilities"></div>
+
+              <pre id="rawJson" class="raw-json"></pre>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <script>
+      const emotionLabels = {
+        neutral: "중립",
+        happy: "행복",
+        sad: "슬픔",
+        angry: "분노",
+        fearful: "두려움",
+        disgust: "혐오",
+        surprised: "놀람",
+      };
+
+      const feedbackByEmotion = {
+        neutral: "감정의 과장이 적고 안정적인 톤으로 인식됐습니다. 더 명확한 감정 연기가 필요하다면 속도, 호흡, 강세 변화를 조금 더 만들어보세요.",
+        happy: "밝고 상승감 있는 표현으로 인식됐습니다. 기쁨을 더 선명하게 만들려면 문장 끝의 에너지와 웃음 섞인 호흡을 유지해보세요.",
+        sad: "낮은 에너지와 가라앉은 정서가 감지됐습니다. 슬픔을 강화하려면 말끝을 급히 끊지 말고 호흡을 길게 가져가보세요.",
+        angry: "강한 압력과 긴장감이 분노로 인식됐습니다. 과도하게 소리만 커지지 않도록 단어별 강세와 멈춤을 조절해보세요.",
+        fearful: "불안정한 긴장과 조심스러운 표현이 두려움으로 인식됐습니다. 떨림, 짧은 호흡, 망설임을 더하면 감정이 더 분명해질 수 있습니다.",
+        disgust: "거부감이나 불쾌감이 있는 표현으로 인식됐습니다. 혐오 감정을 강화하려면 특정 단어에서 톤을 더 날카롭게 좁혀보세요.",
+        surprised: "갑작스러운 반응과 높은 에너지가 놀람으로 인식됐습니다. 초반 반응을 더 빠르게 만들면 놀람의 순간성이 살아납니다.",
+      };
+
+      const endpointInput = document.querySelector("#endpointInput");
+      const recordButton = document.querySelector("#recordButton");
+      const stopButton = document.querySelector("#stopButton");
+      const predictButton = document.querySelector("#predictButton");
+      const fileInput = document.querySelector("#fileInput");
+      const audioPreview = document.querySelector("#audioPreview");
+      const message = document.querySelector("#message");
+      const apiStatus = document.querySelector("#apiStatus");
+      const emptyState = document.querySelector("#emptyState");
+      const resultView = document.querySelector("#resultView");
+      const emotionLabel = document.querySelector("#emotionLabel");
+      const confidence = document.querySelector("#confidence");
+      const feedback = document.querySelector("#feedback");
+      const topK = document.querySelector("#topK");
+      const probabilities = document.querySelector("#probabilities");
+      const rawJson = document.querySelector("#rawJson");
+
+      let mediaRecorder = null;
+      let recordedChunks = [];
+      let selectedAudio = null;
+      let selectedFilename = "recording.webm";
+
+      function formatPercent(value) {
+        return `${Math.round(value * 100)}%`;
+      }
+
+      function localizeEmotion(emotion) {
+        return emotionLabels[emotion] || emotion;
+      }
+
+      function setMessage(text, type = "info") {
+        message.textContent = text;
+        message.className = `message show ${type}`;
+      }
+
+      function clearMessage() {
+        message.textContent = "";
+        message.className = "message";
+      }
+
+      function setApiStatus(text, state) {
+        apiStatus.className = `status-pill ${state || ""}`.trim();
+        apiStatus.querySelector("span:last-child").textContent = text;
+      }
+
+      function getHealthUrl() {
+        try {
+          return new URL("/health", endpointInput.value).toString();
+        } catch {
+          return "http://localhost:8000/health";
+        }
+      }
+
+      async function checkApiStatus() {
+        try {
+          const response = await fetch(getHealthUrl());
+          if (!response.ok) {
+            throw new Error(`HTTP ${response.status}`);
+          }
+          const data = await response.json();
+          setApiStatus(data.model_loaded ? `API 연결됨 (${data.device})` : "API 연결됨, 모델 없음", data.model_loaded ? "ready" : "error");
+        } catch {
+          setApiStatus("API 연결 안 됨", "error");
+        }
+      }
+
+      function chooseMimeType() {
+        const candidates = [
+          "audio/wav",
+          "audio/webm;codecs=opus",
+          "audio/webm",
+          "audio/mp4",
+        ];
+        return candidates.find((type) => MediaRecorder.isTypeSupported(type)) || "";
+      }
+
+      async function startRecording() {
+        clearMessage();
+        if (!navigator.mediaDevices?.getUserMedia) {
+          setMessage("이 브라우저에서는 마이크 녹음을 사용할 수 없습니다.", "error");
+          return;
+        }
+
+        try {
+          const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+          recordedChunks = [];
+          const mimeType = chooseMimeType();
+          mediaRecorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
+
+          mediaRecorder.addEventListener("dataavailable", (event) => {
+            if (event.data.size > 0) {
+              recordedChunks.push(event.data);
+            }
+          });
+
+          mediaRecorder.addEventListener("stop", () => {
+            const type = mediaRecorder.mimeType || "audio/webm";
+            const extension = type.includes("wav") ? "wav" : type.includes("mp4") ? "m4a" : "webm";
+            selectedAudio = new Blob(recordedChunks, { type });
+            selectedFilename = `recording.${extension}`;
+            audioPreview.src = URL.createObjectURL(selectedAudio);
+            audioPreview.hidden = false;
+            predictButton.disabled = false;
+            stream.getTracks().forEach((track) => track.stop());
+            setMessage("녹음이 준비됐습니다. 감정 예측을 실행하세요.");
+          });
+
+          mediaRecorder.start();
+          recordButton.disabled = true;
+          stopButton.disabled = false;
+          predictButton.disabled = true;
+          setMessage("녹음 중입니다. 대사를 연기한 뒤 정지를 누르세요.");
+        } catch (error) {
+          setMessage(`마이크를 사용할 수 없습니다: ${error.message}`, "error");
+        }
+      }
+
+      function stopRecording() {
+        if (mediaRecorder && mediaRecorder.state !== "inactive") {
+          mediaRecorder.stop();
+        }
+        recordButton.disabled = false;
+        stopButton.disabled = true;
+      }
+
+      function handleFileChange(event) {
+        const file = event.target.files?.[0];
+        if (!file) {
+          return;
+        }
+        selectedAudio = file;
+        selectedFilename = file.name || "upload.wav";
+        audioPreview.src = URL.createObjectURL(file);
+        audioPreview.hidden = false;
+        predictButton.disabled = false;
+        clearMessage();
+      }
+
+      function renderBar(name, value) {
+        const row = document.createElement("div");
+        row.className = "probability-row";
+        row.innerHTML = `
+          <span class="emotion-name">${localizeEmotion(name)}</span>
+          <span class="bar"><span class="bar-fill" style="width: ${Math.max(0, Math.min(100, value * 100))}%"></span></span>
+          <span class="percent">${formatPercent(value)}</span>
+        `;
+        return row;
+      }
+
+      function renderFeedback(result) {
+        const localized = localizeEmotion(result.emotion);
+        const confidenceValue = Number(result.confidence || 0);
+        emotionLabel.textContent = localized;
+        confidence.textContent = formatPercent(confidenceValue);
+
+        const baseFeedback = feedbackByEmotion[result.emotion] || "예측 감정을 기준으로 연기 표현을 점검하세요.";
+        const confidenceFeedback =
+          confidenceValue < 0.45
+            ? " 다만 confidence가 낮아 모델 기준으로 감정 표현이 모호합니다. 목표 감정의 호흡, 강세, 속도 차이를 더 분명하게 만들어보세요."
+            : confidenceValue < 0.7
+              ? " 감정은 감지됐지만 더 선명하게 전달하려면 핵심 단어의 강세를 조정해보세요."
+              : " 모델 기준으로 감정 표현이 비교적 선명하게 전달됐습니다.";
+        feedback.textContent = `${baseFeedback}${confidenceFeedback}`;
+
+        topK.innerHTML = "";
+        (result.top_k || []).forEach((item) => {
+          topK.appendChild(renderBar(item.emotion, item.probability));
+        });
+
+        probabilities.innerHTML = "";
+        Object.entries(result.probabilities || {}).forEach(([name, value]) => {
+          probabilities.appendChild(renderBar(name, value));
+        });
+
+        rawJson.textContent = JSON.stringify(result, null, 2);
+        emptyState.hidden = true;
+        resultView.hidden = false;
+      }
+
+      async function predictEmotion() {
+        clearMessage();
+        if (!selectedAudio) {
+          setMessage("먼저 녹음하거나 음성 파일을 선택하세요.", "error");
+          return;
+        }
+
+        predictButton.disabled = true;
+        predictButton.textContent = "분석 중";
+
+        const formData = new FormData();
+        formData.append("file", selectedAudio, selectedFilename);
+        formData.append("return_probabilities", "true");
+        formData.append("return_top_k", "3");
+
+        try {
+          const response = await fetch(endpointInput.value, {
+            method: "POST",
+            body: formData,
+          });
+          const data = await response.json().catch(() => ({}));
+
+          if (!response.ok) {
+            const detail = data.detail || `HTTP ${response.status}`;
+            throw new Error(detail);
+          }
+
+          renderFeedback(data);
+          setMessage("예측이 완료됐습니다.");
+          checkApiStatus();
+        } catch (error) {
+          setMessage(
+            `예측 요청 실패: ${error.message}. API 서버, checkpoint, 오디오 포맷을 확인하세요.`,
+            "error",
+          );
+        } finally {
+          predictButton.disabled = false;
+          predictButton.textContent = "감정 예측하기";
+        }
+      }
+
+      recordButton.addEventListener("click", startRecording);
+      stopButton.addEventListener("click", stopRecording);
+      fileInput.addEventListener("change", handleFileChange);
+      predictButton.addEventListener("click", predictEmotion);
+      endpointInput.addEventListener("change", checkApiStatus);
+
+      checkApiStatus();
+    </script>
+  </body>
+</html>

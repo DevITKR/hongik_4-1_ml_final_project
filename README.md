@@ -11,6 +11,8 @@ Run the full preprocessing, training, and final evaluation flow:
 python3 src/preprocess.py
 PYTHONPATH=src python3 src/train.py
 PYTHONPATH=src python3 src/evaluate.py
+PYTHONPATH=src uvicorn api:app --host 0.0.0.0 --port 8000
+python3 -m http.server 5173 --directory frontend
 ```
 
 What each command does:
@@ -18,6 +20,8 @@ What each command does:
 - `python3 src/preprocess.py`: creates metadata and speaker-based train/validation/test split CSV files.
 - `PYTHONPATH=src python3 src/train.py`: trains with train/validation splits and saves the best validation checkpoint.
 - `PYTHONPATH=src python3 src/evaluate.py`: evaluates the best checkpoint on the test split and saves metrics, report, and confusion matrix.
+- `PYTHONPATH=src uvicorn api:app --host 0.0.0.0 --port 8000`: starts the API server for frontend audio emotion classification.
+- `python3 -m http.server 5173 --directory frontend`: serves the simple HTML frontend at `http://localhost:5173`.
 
 Smoke test commands:
 
@@ -42,7 +46,7 @@ results/confusion_matrix.png
 `src/train.py` does not use the test split. The test split is used only by
 `src/evaluate.py` after training is complete.
 
-## Current Workflow Status
+## Workflow
 
 Implemented:
 
@@ -53,10 +57,8 @@ Implemented:
 5. Wav2Vec2 + BiLSTM + Multi-Head Attention model
 6. Training with validation-based best model saving
 7. Final test evaluation
-
-Planned:
-
-1. Lightweight API server for frontend audio emotion classification
+8. Lightweight API server for frontend audio emotion classification
+9. Simple HTML frontend for emotion acting feedback
 
 ## Dataset Layout
 
@@ -384,8 +386,7 @@ classifier dropout: 0.3
 ```
 
 The Wav2Vec2 backbone remains frozen. The Wav2Vec2 layer weights, BiLSTM,
-attention layer, and classifier are trainable. The next workflow step is the
-final test-only evaluation.
+attention layer, and classifier are trainable.
 
 ## Training
 
@@ -493,3 +494,239 @@ neutral, happy, sad, angry, fearful, disgust, surprised
 If evaluating a checkpoint produced by a smoke test, the metric values are only
 useful for verifying the evaluation pipeline. Final reported performance should
 be produced from a checkpoint created by full training.
+
+## API Server
+
+`src/api.py` provides a lightweight FastAPI server for frontend audio emotion
+classification. The API loads this checkpoint:
+
+```text
+saved_models/wav2vec2_bilstm_attention_best.pth
+```
+
+Run the server:
+
+```bash
+PYTHONPATH=src uvicorn api:app --host 0.0.0.0 --port 8000
+```
+
+For local-only testing:
+
+```bash
+PYTHONPATH=src uvicorn api:app --host 127.0.0.1 --port 8000
+```
+
+The server uses the same audio input policy as training and evaluation:
+
+```text
+mono conversion
+16 kHz resampling
+4 second crop/pad
+model input shape: [1, 64000]
+```
+
+The API needs a trained best checkpoint. If the checkpoint does not exist,
+`/health` still responds, but `/predict` returns `503 Service Unavailable`.
+
+### Health Check
+
+```http
+GET /health
+```
+
+Example response:
+
+```json
+{
+  "status": "ok",
+  "model_loaded": true,
+  "device": "mps"
+}
+```
+
+Fields:
+
+| Field | Meaning |
+| --- | --- |
+| `status` | API server process status |
+| `model_loaded` | Whether the checkpoint was loaded successfully |
+| `device` | Inference device selected by the server |
+
+### Emotion Prediction
+
+```http
+POST /predict
+Content-Type: multipart/form-data
+```
+
+Request parameters:
+
+| Name | Type | Required | Default | Description |
+| --- | --- | --- | --- | --- |
+| `file` | `File` | yes | none | Audio file to classify. `.wav` is recommended. Browser-recorded `audio/webm` may fail if the local audio backend cannot decode it. |
+| `return_probabilities` | `boolean` | no | `true` | If `true`, returns probabilities for all 7 emotion classes. |
+| `return_top_k` | `integer` | no | `3` | Number of top predictions to return. Must be between `1` and `7`. |
+
+Frontend request example:
+
+```ts
+const formData = new FormData();
+formData.append("file", audioBlob, "recording.wav");
+formData.append("return_probabilities", "true");
+formData.append("return_top_k", "3");
+
+const response = await fetch("http://localhost:8000/predict", {
+  method: "POST",
+  body: formData,
+});
+
+const result = await response.json();
+```
+
+Do not send JSON for `/predict`. The frontend must send
+`multipart/form-data`, and the browser will set the `Content-Type` boundary
+automatically when `FormData` is used.
+
+Example response:
+
+```json
+{
+  "emotion": "angry",
+  "label": 3,
+  "confidence": 0.8123,
+  "probabilities": {
+    "neutral": 0.0123,
+    "happy": 0.0312,
+    "sad": 0.0441,
+    "angry": 0.8123,
+    "fearful": 0.0602,
+    "disgust": 0.0217,
+    "surprised": 0.0182
+  },
+  "top_k": [
+    {
+      "emotion": "angry",
+      "label": 3,
+      "probability": 0.8123
+    },
+    {
+      "emotion": "fearful",
+      "label": 4,
+      "probability": 0.0602
+    },
+    {
+      "emotion": "sad",
+      "label": 2,
+      "probability": 0.0441
+    }
+  ]
+}
+```
+
+Response fields:
+
+| Field | Meaning |
+| --- | --- |
+| `emotion` | Predicted emotion class name |
+| `label` | Predicted integer label |
+| `confidence` | Probability of the predicted label |
+| `probabilities` | Class probability map, included only when `return_probabilities=true` |
+| `top_k` | Top-k predictions sorted by probability |
+
+Label mapping:
+
+| Emotion | Label |
+| --- | ---: |
+| neutral | 0 |
+| happy | 1 |
+| sad | 2 |
+| angry | 3 |
+| fearful | 4 |
+| disgust | 5 |
+| surprised | 6 |
+
+Error responses:
+
+| Status | Cause |
+| ---: | --- |
+| `400` | Uploaded audio could not be decoded, or the uploaded file is empty |
+| `422` | Required file is missing, or `return_top_k` is outside `1..7` |
+| `503` | Best checkpoint is missing or failed to load |
+| `500` | Model inference failed unexpectedly |
+
+Smoke test:
+
+```bash
+curl http://127.0.0.1:8000/health
+
+curl -X POST http://127.0.0.1:8000/predict \
+  -F "file=@data/raw/RAVDESS/01-neutral/03-01-01-01-01-01-01.wav" \
+  -F "return_probabilities=true" \
+  -F "return_top_k=3"
+```
+
+## HTML Frontend
+
+`frontend/index.html` is a static browser UI for emotion acting feedback. It
+can record microphone audio with `MediaRecorder` or upload a local audio file,
+then sends the audio to the API server.
+
+Start the API server first:
+
+```bash
+PYTHONPATH=src uvicorn api:app --host 0.0.0.0 --port 8000
+```
+
+Start the frontend server:
+
+```bash
+python3 -m http.server 5173 --directory frontend
+```
+
+Open:
+
+```text
+http://localhost:5173
+```
+
+The frontend sends this request:
+
+```http
+POST http://localhost:8000/predict
+Content-Type: multipart/form-data
+```
+
+Exact `FormData` parameters:
+
+| Name | Value sent by frontend | Required | Description |
+| --- | --- | --- | --- |
+| `file` | recorded `Blob` or uploaded `File` | yes | Audio input selected by the user |
+| `return_probabilities` | `"true"` | no | Requests all 7 class probabilities |
+| `return_top_k` | `"3"` | no | Requests the top 3 predicted emotions |
+
+Frontend request code:
+
+```js
+const formData = new FormData();
+formData.append("file", audioBlobOrFile, "recording.wav");
+formData.append("return_probabilities", "true");
+formData.append("return_top_k", "3");
+
+const response = await fetch("http://localhost:8000/predict", {
+  method: "POST",
+  body: formData,
+});
+```
+
+The UI consumes these response fields:
+
+| Field | Used for |
+| --- | --- |
+| `emotion` | Main predicted emotion and feedback selection |
+| `label` | Integer class id display/debugging |
+| `confidence` | Main confidence percentage |
+| `probabilities` | Seven emotion probability bars |
+| `top_k` | Top-3 candidate list |
+
+Browser recording may produce `audio/webm`. If the backend audio decoder cannot
+decode that format, use the upload control with a `.wav` file for stable tests.
